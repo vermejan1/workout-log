@@ -97,7 +97,7 @@
       border-radius: 8px; 
       padding: 0.75rem; 
       color: var(--text-main); 
-      font-size: 16px; /* Prevents auto-zoom on iOS inputs */
+      font-size: 16px; 
       outline: none; 
       width: 100%;
     }
@@ -212,6 +212,44 @@
 
     .btn-cancel { background-color: #475569; color: #fff; margin-top: 0.5rem; display: none; }
 
+    /* Personal Bests Grid Styling */
+    .pb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.85rem;
+      margin-top: 0.5rem;
+    }
+
+    .pb-card {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .pb-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.35rem;
+    }
+
+    .pb-stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .pb-stat span {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
     .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
     th { background-color: var(--input-bg); color: var(--text-muted); font-weight: 600; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--card-border); white-space: nowrap; }
@@ -260,7 +298,6 @@
 
     .chart-container { position: relative; height: 250px; width: 100%; margin-top: 0.5rem; }
 
-    /* Desktop and Tablet Enhancements */
     @media (min-width: 640px) {
       body { padding: 2rem 1rem; }
       header h1 { font-size: 2rem; }
@@ -310,6 +347,256 @@
         <div class="form-grid">
           <div class="form-group">
             <label for="date">Date</label>
+            <input type="date" id="date" required>
+          </div>
+          <div class="form-group">
+            <label for="exercise">Exercise</label>
+            <input type="text" id="exercise" list="exerciseList" placeholder="e.g. Bench Press" required oninput="updateStatsPreview()">
+            <datalist id="exerciseList">
+              <option value="Bench Press"></option>
+              <option value="Squat"></option>
+              <option value="Deadlift"></option>
+              <option value="Overhead Press"></option>
+              <option value="Barbell Row"></option>
+              <option value="Pull-up"></option>
+              <option value="Dumbbell Curl"></option>
+              <option value="Tricep Extension"></option>
+              <option value="Leg Press"></option>
+              <option value="Lat Pulldown"></option>
+            </datalist>
+          </div>
+        </div>
+
+        <!-- Multi-Set Counter -->
+        <div class="sets-container">
+          <label>Sets Configuration</label>
+          <div id="setsList"></div>
+          <button type="button" class="add-set-btn" onclick="addSetRow()">+ Add Set</button>
+        </div>
+
+        <!-- Live Volume & 1RM Calculator -->
+        <div class="calc-box">
+          <div class="calc-item">
+            <span class="calc-val" id="totalVolumeVal">0 lbs</span>
+            <span class="calc-lbl">Total Volume</span>
+          </div>
+          <div class="calc-item">
+            <span class="calc-val" id="est1RMVal">0 lbs</span>
+            <span class="calc-lbl">Est. 1RM (Epley)</span>
+          </div>
+        </div>
+
+        <button type="submit" class="btn" id="submitBtn">Add Workout Entry</button>
+        <button type="button" class="btn btn-cancel" id="cancelBtn" onclick="resetForm()">Cancel Editing</button>
+      </form>
+    </div>
+
+    <!-- Personal Bests Analytics Card -->
+    <div class="card">
+      <div class="card-title">
+        <span>🏆 Personal Bests</span>
+      </div>
+      <div class="pb-grid" id="personalBestsGrid">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+
+    <!-- Progress Graph View Card -->
+    <div class="card">
+      <div class="card-title">
+        <span>📈 Progress Analytics</span>
+        <select id="chartExerciseSelect" style="width: auto; padding: 0.4rem 0.6rem; font-size: 16px;" onchange="updateChart()">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+      <div class="chart-container">
+        <canvas id="progressChart"></canvas>
+      </div>
+    </div>
+
+    <!-- History / Recent Entries Table Card -->
+    <div class="card">
+      <div class="card-title">
+        <span>Recent Entries</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <select id="tableFilterSelect" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem;" onchange="renderTable()">
+            <!-- Populated dynamically -->
+          </select>
+          <span class="badge" id="entryCount">0 logged</span>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table id="workoutTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Exercise</th>
+              <th>Sets / Details</th>
+              <th>Total Vol</th>
+              <th>Max 1RM</th>
+              <th style="width: 70px; text-align: center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="workoutTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">No workout entries logged yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-toast" id="statusToast">
+    <span id="toastMessage">Entry saved successfully!</span>
+  </div>
+
+  <script>
+    document.getElementById('date').valueAsDate = new Date();
+    document.getElementById('webAppUrl').value = localStorage.getItem('workout_sheet_webapp_url') || '';
+
+    let entries = JSON.parse(localStorage.getItem('workout_entries') || '[]');
+    let chartInstance = null;
+
+    // Initialize interface
+    addSetRow(185, 8);
+    populateDropdowns();
+    renderTable();
+    renderPersonalBests();
+    initChart();
+
+    document.getElementById('webAppUrl').addEventListener('change', (e) => {
+      localStorage.setItem('workout_sheet_webapp_url', e.target.value.trim());
+      showToast('API URL saved', 'success');
+    });
+
+    function toggleConfig() {
+      document.getElementById('configPanel').classList.toggle('active');
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('statusToast');
+      document.getElementById('toastMessage').innerText = message;
+      toast.className = `status-toast ${type} show`;
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    /* --- Set Rows Management & Calculations --- */
+    function addSetRow(defaultWeight = 0, defaultReps = 0) {
+      const setsList = document.getElementById('setsList');
+      const setNumber = setsList.children.length + 1;
+
+      const setRow = document.createElement('div');
+      setRow.className = 'set-row';
+      setRow.innerHTML = `
+        <span class="set-label">Set ${setNumber}</span>
+        <input type="number" class="set-weight" step="0.5" min="0" placeholder="Weight" value="${defaultWeight || ''}" required oninput="updateStatsPreview()">
+        <input type="number" class="set-reps" min="1" placeholder="Reps" value="${defaultReps || ''}" required oninput="updateStatsPreview()">
+        <button type="button" class="remove-set-btn" onclick="removeSetRow(this)" title="Remove Set">&times;</button>
+      `;
+      setsList.appendChild(setRow);
+      reindexSetLabels();
+      updateStatsPreview();
+    }
+
+    function removeSetRow(btn) {
+      const setsList = document.getElementById('setsList');
+      if (setsList.children.length > 1) {
+        btn.closest('.set-row').remove();
+        reindexSetLabels();
+        updateStatsPreview();
+      } else {
+        showToast('At least one set is required', 'error');
+      }
+    }
+
+    function reindexSetLabels() {
+      const rows = document.querySelectorAll('#setsList .set-row');
+      rows.forEach((row, idx) => {
+        row.querySelector('.set-label').innerText = `Set ${idx + 1}`;
+      });
+    }
+
+    function getFormSetsData() {
+      const weightInputs = document.querySelectorAll('.set-weight');
+      const repsInputs = document.querySelectorAll('.set-reps');
+      let sets = [];
+      let totalVolume = 0;
+      let max1RM = 0;
+
+      weightInputs.forEach((wInput, idx) => {
+        const weight = parseFloat(wInput.value) || 0;
+        const reps = parseInt(repsInputs[idx].value, 10) || 0;
+        if (weight > 0 && reps > 0) {
+          const volume = weight * reps;
+          const epley1RM = Math.round(weight * (1 + reps / 30));
+          totalVolume += volume;
+          if (epley1RM > max1RM) max1RM = epley1RM;
+          sets.push({ set: idx + 1, weight, reps, volume, epley1RM });
+        }
+      });
+
+      return { sets, totalVolume, max1RM };
+    }
+
+    function updateStatsPreview() {
+      const { totalVolume, max1RM } = getFormSetsData();
+      document.getElementById('totalVolumeVal').innerText = `${totalVolume} lbs`;
+      document.getElementById('est1RMVal').innerText = `${max1RM} lbs`;
+    }
+
+    /* --- Form Submission (Add / Edit) --- */
+    document.getElementById('workoutForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const editId = document.getElementById('editId').value;
+      const isEditing = editId !== "";
+      const existingItem = isEditing ? entries.find(item => item.id === Number(editId)) : null;
+
+      const { sets, totalVolume, max1RM } = getFormSetsData();
+      if (sets.length === 0) {
+        showToast('Please enter valid weight and reps for sets', 'error');
+        return;
+      }
+
+      const currentDateValue = document.getElementById('date').value;
+
+      const entry = {
+        id: isEditing ? Number(editId) : Date.now(),
+        date: currentDateValue,
+        exercise: document.getElementById('exercise').value.trim(),
+        weight: sets[0].weight,
+        reps: sets[0].reps,
+        sets: sets,
+        totalVolume: totalVolume,
+        max1RM: max1RM,
+        action: isEditing ? 'update' : 'add',
+        originalExercise: document.getElementById('originalExercise').value,
+        row: existingItem ? existingItem.row : null
+      };
+
+      const webAppUrl = localStorage.getItem('workout_sheet_webapp_url');
+      if (webAppUrl) {
+        showToast(isEditing ? 'Updating Google Sheet...' : 'Saving to Google Sheet...', 'success');
+        try {
+          await fetch(webAppUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(entry)
+          });
+          showToast(isEditing ? 'Updated entry in Google Sheet!' : 'Logged & synced to Google Sheet!', 'success');
+        } catch (error) {
+          showToast('Saved locally, sync failed.', 'error');
+        }
+      } else {
+        showToast('Saved locally! Set Web App URL to sync.', 'success');
+      }
+
+      if (isEditing) {
+        entries = entries.map(item => item.id === entry.id ? entry : item);
+      } else {
+        entries.unshift(entry);
+      }
+
+    >Date</label>
             <input type="date" id="date" required>
           </div>
           <div class="form-group">
