@@ -38,6 +38,12 @@
     input { background-color: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 0.75rem; color: var(--text-main); font-size: 0.95rem; outline: none; }
     input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 
+    .weight-input-group { display: flex; align-items: center; gap: 0.4rem; }
+    .weight-input-group input { flex: 1; width: 100%; }
+    .stepper-btn { background-color: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-main); border-radius: 8px; padding: 0.75rem 0.6rem; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+    .stepper-btn:hover { border-color: var(--accent); color: var(--accent); background-color: rgba(56, 189, 248, 0.1); }
+    .stepper-btn:active { transform: scale(0.95); }
+
     .btn { background-color: var(--accent); color: #0f172a; border: none; border-radius: 8px; padding: 0.85rem; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s ease; width: 100%; margin-top: 1rem; }
     .btn:hover { background-color: var(--accent-hover); color: #fff; }
     .btn-secondary { background-color: transparent; color: var(--text-muted); border: 1px solid var(--input-border); padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin-top: 0; }
@@ -89,6 +95,7 @@
 
       <form id="workoutForm">
         <input type="hidden" id="editId" value="">
+        <input type="hidden" id="originalExercise" value="">
         <div class="form-grid">
           <div class="form-group">
             <label for="date">Date</label>
@@ -100,7 +107,11 @@
           </div>
           <div class="form-group">
             <label for="weight">Weight (lbs)</label>
-            <input type="number" id="weight" step="0.5" min="0" placeholder="e.g. 185" required>
+            <div class="weight-input-group">
+              <button type="button" class="stepper-btn" onclick="adjustWeight(-5)">-5</button>
+              <input type="number" id="weight" step="0.5" min="0" placeholder="e.g. 185" required>
+              <button type="button" class="stepper-btn" onclick="adjustWeight(5)">+5</button>
+            </div>
           </div>
           <div class="form-group">
             <label for="reps">Reps</label>
@@ -147,8 +158,6 @@
 
     let entries = JSON.parse(localStorage.getItem('workout_entries') || '[]');
     renderTable();
-    
-    // Auto-prepopulate form with latest entry values on page load
     loadLatestEntryIntoForm();
 
     document.getElementById('webAppUrl').addEventListener('change', (e) => {
@@ -165,6 +174,13 @@
       document.getElementById('toastMessage').innerText = message;
       toast.className = `status-toast ${type} show`;
       setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function adjustWeight(amount) {
+      const weightInput = document.getElementById('weight');
+      let currentVal = parseFloat(weightInput.value);
+      if (isNaN(currentVal)) currentVal = 0;
+      weightInput.value = Math.max(0, currentVal + amount);
     }
 
     function loadLatestEntryIntoForm() {
@@ -190,10 +206,10 @@
         weight: parseFloat(document.getElementById('weight').value),
         reps: parseInt(document.getElementById('reps').value, 10),
         action: isEditing ? 'update' : 'add',
+        originalExercise: document.getElementById('originalExercise').value,
         row: existingItem ? existingItem.row : null
       };
 
-      // Store as last entry so subsequent sets can be logged with 1 click
       localStorage.setItem('last_workout_entry', JSON.stringify({
         exercise: entry.exercise,
         weight: entry.weight,
@@ -205,17 +221,12 @@
       if (webAppUrl) {
         showToast(isEditing ? 'Updating Google Sheet...' : 'Saving to Google Sheet...', 'success');
         try {
-          const response = await fetch(webAppUrl, {
+          await fetch(webAppUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(entry)
           });
-          
-          const resData = await response.json();
-          if (resData.row) {
-            entry.row = resData.row;
-          }
-          showToast(isEditing ? 'Updated exact set in Google Sheet!' : 'Logged & synced to Google Sheet!', 'success');
+          showToast(isEditing ? 'Updated entry in Google Sheet!' : 'Logged & synced to Google Sheet!', 'success');
         } catch (error) {
           showToast('Saved locally, sync failed.', 'error');
         }
@@ -239,6 +250,7 @@
       if (!item) return;
 
       document.getElementById('editId').value = item.id;
+      document.getElementById('originalExercise').value = item.exercise;
       document.getElementById('date').value = item.date;
       document.getElementById('exercise').value = item.exercise;
       document.getElementById('weight').value = item.weight;
@@ -253,13 +265,13 @@
 
     function resetForm() {
       document.getElementById('editId').value = '';
+      document.getElementById('originalExercise').value = '';
       document.getElementById('date').valueAsDate = new Date();
 
       document.getElementById('formTitle').innerText = 'Log Exercise';
       document.getElementById('submitBtn').innerText = 'Add Workout Entry';
       document.getElementById('cancelBtn').style.display = 'none';
 
-      // Keep prefilled values from the last entry
       loadLatestEntryIntoForm();
     }
 
